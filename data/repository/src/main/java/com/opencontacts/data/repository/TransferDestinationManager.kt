@@ -227,8 +227,12 @@ class TransferDestinationManager @Inject constructor(
     private fun releasePersistedPermission(uriString: String) {
         val uri = Uri.parse(uriString)
         val permission = context.contentResolver.persistedUriPermissions.firstOrNull { it.uri == uri } ?: return
+        val flags =
+            (if (permission.isReadPermission) Intent.FLAG_GRANT_READ_URI_PERMISSION else 0) or
+            (if (permission.isWritePermission) Intent.FLAG_GRANT_WRITE_URI_PERMISSION else 0)
+        if (flags == 0) return
         try {
-            context.contentResolver.releasePersistableUriPermission(uri, permission.modeFlags)
+            context.contentResolver.releasePersistableUriPermission(uri, flags)
         } catch (_: SecurityException) {
             // Ignore stale permission entries.
         }
