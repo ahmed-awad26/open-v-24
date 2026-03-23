@@ -1,13 +1,14 @@
 package com.opencontacts.feature.contacts.fastscroll
 
+import android.view.MotionEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -22,12 +23,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.awaitEachGesture
-import androidx.compose.ui.input.pointer.awaitFirstDown
-import androidx.compose.ui.input.pointer.awaitPointerEvent
-import androidx.compose.ui.input.pointer.consume
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -42,9 +40,9 @@ fun AlphabetFastScroller(
 ) {
     var activeLetter by remember(letters) { mutableStateOf<String?>(null) }
     var railHeightPx by remember { mutableIntStateOf(0) }
-    val bubbleSizePx = 40.dp
-    val bubbleHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) { bubbleSizePx.roundToPx() }
-    val bubbleOffsetXPx = with(androidx.compose.ui.platform.LocalDensity.current) { 52.dp.roundToPx() }
+    val density = LocalDensity.current
+    val bubbleHeightPx = with(density) { 40.dp.roundToPx() }
+    val bubbleOffsetXPx = with(density) { 52.dp.roundToPx() }
 
     fun handleTouch(y: Float) {
         val index = mapTouchYToLetterIndex(
@@ -67,24 +65,26 @@ fun AlphabetFastScroller(
     ) {
         Box(
             modifier = Modifier
-                .padding(vertical = 12.dp, end = 2.dp)
+                .padding(top = 12.dp, bottom = 12.dp, end = 2.dp)
                 .width(36.dp)
                 .fillMaxHeight(0.82f)
                 .onSizeChanged { railHeightPx = it.height }
-                .pointerInput(letters) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        handleTouch(down.position.y)
-                        down.consume()
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull() ?: break
-                            if (!change.pressed) break
-                            handleTouch(change.position.y)
-                            change.consume()
+                .pointerInteropFilter { event ->
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN,
+                        MotionEvent.ACTION_MOVE -> {
+                            handleTouch(event.y)
+                            true
                         }
-                        activeLetter = null
-                        onInteractionEnd()
+
+                        MotionEvent.ACTION_UP,
+                        MotionEvent.ACTION_CANCEL -> {
+                            activeLetter = null
+                            onInteractionEnd()
+                            true
+                        }
+
+                        else -> false
                     }
                 },
             contentAlignment = Alignment.CenterEnd,
